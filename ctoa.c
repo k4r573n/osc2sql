@@ -44,8 +44,35 @@ typedef struct _config {
  */
 
 
+/* 
+ * addTagValues:
+ * @oscptNode: is a Tag-Node to parse and add to SQL Output
+ * @nodeID: ID of parent node
+ * @i: conter - is this the first run on this node or higher?
+ *
+ * parses a xml-node representing a tag and returns the Values in SQL INSERT format to stdout
+ *
+ */
+static int
+addTagValues(xmlNode *oscptNode, int nodeID, int i) {
+	//printf("in addTagValues\n");
 
-/* parses a node and returns it as SQL INSERT
+	if (i>0) printf(", "); //value blocks seperator
+
+	printf("('%d', '%s', '%s')",
+		nodeID,
+		xmlGetProp(oscptNode, (const xmlChar *)"k"),
+		xmlGetProp(oscptNode, (const xmlChar *)"v")
+	);
+
+	return 1;//important! used as counter
+}
+
+/* 
+ * addNode:
+ * @oscptNode: is a Node to parse and add to SQL Output
+ *
+ * parses a xml-node and returns it in SQL INSERT format to stdout
  *
  */
 static int
@@ -75,21 +102,64 @@ addNode(xmlNode *oscptNode) {
 		}
 
 		// Find the childs to parse them
-		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) 
+		{
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
-			{
-				i++;//count them
-				if (i>1) printf(", "); //value blocks seperator
-
-				printf("('%d', '%s', '%s')",
-					nodeID,
-					xmlGetProp(tmp_node, (const xmlChar *)"k"),
-					xmlGetProp(tmp_node, (const xmlChar *)"v")
-				);
-			}
+				i += addTagValues(tmp_node, nodeID, i);
 		}
 		if (i>1) printf(";\n"); //new line if there are tag(s)
-	}
+
+	} else 
+		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
+	return i; //number of tags
+}
+
+
+/* 
+ * addWay:
+ * @oscptNode: is a Way-Node to parse and add to SQL Output
+ *
+ * parses a xml-node representing a way and returns it in SQL INSERT format to stdout
+ *
+ */
+static int
+addWay(xmlNode *oscptNode) {
+	int i = 0;	
+	xmlNode *tmp_node;
+
+	printf("in addWay\n");
+
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"way")) ) 
+	{
+		int wayID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
+		//add general node infos
+		printf("INSERT INTO ways (id, visible, user, timestamp) VALUES ('%d', NULL, '%s', '%s');\n",
+					wayID,
+					xmlGetProp(oscptNode, (const xmlChar *)"user"),
+					xmlGetProp(oscptNode, (const xmlChar *)"timestamp")
+					); 
+	
+		//check if childs exists
+		if (oscptNode->children) 
+		{
+			//init tag insert
+			printf("INSERT INTO way_tags (id, k, v) VALUES ");
+		}
+
+		// Find the childs to parse them
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			//handle tags
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
+				i += addTagValues(tmp_node, wayID, i);
+			//TODO handle <nd ref="id">
+		}
+		if (i>1) printf(";\n"); //new line if there are tag(s)
+	} else 
+		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
 	return i; //number of tags
 }
 
@@ -106,15 +176,54 @@ parseCreate(xmlNode *oscptNode) {
 		
 		// Find the childs to parse them
 		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			i++; // object counter
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) 
-			{
-				i++; // node counter
 				addNode(tmp_node);
-			}
-		}
-	fprintf(stderr, "Warnin g: Found %d Nodes to delete is this correct?\n",i);
-	}
+			else if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"way")) ) 
+				addWay(tmp_node);
+			//else if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"relation")) ) 
+				//addRelation(tmp_node);
+			else
+				fprintf(stderr, "Warning: Found unknown Object (%s) !\n", tmp_node->name);
+		}//end Loop
+
+	} else 
+		fprintf(stderr, "Error: not matching Operation Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
 	return i;
+}
+
+
+/* 
+ * deleteNode:
+ * @oscptNode: is a Node to parse and add to SQL Output
+ *
+ * parses a xml-node representing a Node and returns it in SQL DELETE format to stdout
+ *
+ */
+static int
+deleteNode(xmlNode *oscptNode) {
+	int i = 0;	
+	xmlNode *tmp_node;
+
+	printf("in deleteNode\n");
+
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"node")) ) 
+	{
+		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
+		//delete general node info
+		printf("DELETE FROM nodes WHERE id='%d';\n", nodeID ); //TODO check syntax
+	
+		//delete tags
+		printf("DELETE FROM node_tags WHERE id='%d';\n", nodeID ); //TODO check syntax
+
+		//TODO ways, relations
+	} else 
+		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
+	return i; //number of tags
 }
 
 static int
@@ -131,15 +240,49 @@ parseDelete(xmlNode *oscptNode) {
 		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) {
 				i++;
-			//return ( atof((const char *)tmp_node->children->content) );
-				printf("DELETE from `nodes` WHERE id=%d\n", atoi(xmlGetProp(tmp_node, (const xmlChar *)"id")) ); //TODO check syntax
-			}
-		}
-	fprintf(stderr, "del Warning: Found %d Nodes to delete is this correct?\n",i);
-	}
+				deleteNode(tmp_node);
+				//TODO way, relation
+			} else 
+				fprintf(stderr, "Warning: Found unknown Object (%s) !\n", tmp_node->name);
+		}//end Loop
+
+	} else 
+		fprintf(stderr, "Error: not matching Operation Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
 	return i;
 }
 
+static int
+parseModify(xmlNode *oscptNode) {
+
+	printf("in parse Modify\n");
+
+	xmlNode *tmp_node;
+	int i = 0;
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"modify")) && (oscptNode->children) ) {
+		//modify s.th.
+		
+		// Find the childs to parse them
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) {
+				i++;
+				//delete first
+				deleteNode(tmp_node);
+				//create a new one with new values
+				addNode(tmp_node);
+
+				//TODO way, relation
+			}	else
+				fprintf(stderr, "Warning: Found unknown Object (%s) !\n", tmp_node->name);
+		}//end Loop
+
+	} else 
+		fprintf(stderr, "Error: not matching Operation Type (%s) !\n", oscptNode->name);
+
+	xmlFree(tmp_node);
+	return i;
+}
 
 /**
  * traverse_tree:
@@ -176,41 +319,6 @@ traverse_tree(xmlNode * a_node, const config *config) {
 				parseCreate(cur_node);
 			}
 
-				//if ( config->printOutLatLonEle == 1 ) {
-				//	printf("Att: lat = %s \t lon = %s \t ele = %.3f\n", attlat, attlon, ele);
-					//printf("Att: lat = %s \t lon = %s \t ele = %.3f - %.3f - %.3f\n", attlat, attlon, getPrevElevation(cur_node), ele, getNextElevation(cur_node));
-					//printf("Att: lat = %s \t lon = %s \t ele = %.3f - %.3f\n", attlat, attlon, ele, getPrevElevation(cur_node, 3));
-				//}
-
-				/* delete? */
-//				int avg = getCurrentElevation(cur_node);
-//				for ( i = 1; i < config->radius +1; i++) {
-//					int tmp = getPrevElevation( cur_node, i);
-//					//printf("xxxx: %d\n", tmp);
-//					if ( MIN != tmp )
-//						avg += tmp;
-//					else {
-//						avg += ((config->radius +1) - i ) * getPrevElevation( cur_node, i-1);
-//						break;
-//					}
-//				}
-//				for ( i = 1; i < config->radius +1; i++) {
-//					int tmp = getNextElevation( cur_node, i);
-//					//printf("yyyy: %d\n", tmp);
-//					if ( MIN != tmp )
-//						avg += tmp;
-//					else {
-//						avg += ((config->radius +1) - i ) * getNextElevation( cur_node, i-1);
-//						break;
-//					}
-//				}
-//
-//				if ( ele - ( avg / (config->radius*2 +1) ) > config->factor ) {
-//					printf("Marked for deletion\n");
-//					free_node = cur_node;
-//				}
-//				xmlFree(attlat);
-//				xmlFree(attlon);
 		}
 
 		traverse_tree(cur_node->children, config);
