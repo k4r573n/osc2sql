@@ -45,66 +45,101 @@ typedef struct _config {
 
 
 
-static double
-getCurrentElevation(xmlNode *trkptNode) {
-
+/* parses a node and returns it as SQL INSERT
+ *
+ */
+static int
+addNode(xmlNode *oscptNode) {
+	int i = 0;	
 	xmlNode *tmp_node;
 
-	// Find the elevation child and data of a trkpt
-	for (tmp_node = trkptNode->children; tmp_node; tmp_node = tmp_node->next) {
-		if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"ele")) && (tmp_node->children) ) {
-			return ( atof((const char *)tmp_node->children->content) );
+	printf("in addNode\n");
+
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"node")) ) 
+	{
+		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
+		//add general node infos
+		printf("INSERT INTO nodes (id, lat, lon, visible, user, timestamp) VALUES ('%d', '%s', '%s', NULL, '%s', '%s');\n",
+					nodeID,
+					xmlGetProp(oscptNode, (const xmlChar *)"lat"),
+					xmlGetProp(oscptNode, (const xmlChar *)"lon"),
+					xmlGetProp(oscptNode, (const xmlChar *)"user"),
+					xmlGetProp(oscptNode, (const xmlChar *)"timestamp")
+					); 
+	
+		//check if childs exists
+		if (oscptNode->children) 
+		{
+			//init tag insert
+			printf("INSERT INTO node_tags (id, k, v) VALUES ");
 		}
-	}
-	fprintf(stderr, "Warning: Found trackpoint without elevation data, are you sure this is correct?\n");
-	return MIN;
-}
 
-static double
-getPrevElevation(xmlNode *trkptNode, int offset) {
+		// Find the childs to parse them
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
+			{
+				i++;//count them
+				if (i>1) printf(", "); //value blocks seperator
 
-	xmlNode *tmp_node;
-	int counter = 1;
-
-	if ( offset == 0 )
-		return ( getCurrentElevation( trkptNode) );
-
-	// Just find next trkpt point and call getCurrentElevation
-	for (tmp_node = trkptNode->prev; tmp_node; tmp_node = tmp_node->prev) {
-		if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"trkpt")) && (tmp_node->children) ) {
-			if ( counter < offset) {
-				counter++;
-				continue;
+				printf("('%d', '%s', '%s')",
+					nodeID,
+					xmlGetProp(tmp_node, (const xmlChar *)"k"),
+					xmlGetProp(tmp_node, (const xmlChar *)"v")
+				);
 			}
-			return ( getCurrentElevation( tmp_node) );
 		}
+		if (i>1) printf(";\n"); //new line if there are tag(s)
 	}
-	//fprintf(stderr, "Warning: Found trackpoint without elevation data, are you sure this is correct?\n");
-	return MIN;
+	return i; //number of tags
 }
 
-static double
-getNextElevation(xmlNode *trkptNode, int offset) {
+
+static int
+parseCreate(xmlNode *oscptNode) {
+
+	printf("in parse create\n");
 
 	xmlNode *tmp_node;
-	int counter = 1;
-
-	if ( offset == 0 )
-		return ( getCurrentElevation( trkptNode) );
-
-	// Just find next trkpt point and call getCurrentElevation
-	for (tmp_node = trkptNode->next; tmp_node; tmp_node = tmp_node->next) {
-		if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"trkpt")) && (tmp_node->children) ) {
-			if ( counter < offset) {
-				counter++;
-				continue;
+	int i = 0;
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"create")) && (oscptNode->children) ) {
+		//create s.th.
+		
+		// Find the childs to parse them
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) 
+			{
+				i++; // node counter
+				addNode(tmp_node);
 			}
-			return ( getCurrentElevation( tmp_node) );
 		}
+	fprintf(stderr, "Warnin g: Found %d Nodes to delete is this correct?\n",i);
 	}
-	//fprintf(stderr, "Warning: Found trackpoint without elevation data, are you sure this is correct?\n");
-	return MIN;
+	return i;
 }
+
+static int
+parseDelete(xmlNode *oscptNode) {
+
+	printf("in parse delete\n");
+
+	xmlNode *tmp_node;
+	int i = 0;
+	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"delete")) && (oscptNode->children) ) {
+		//delete s.th.
+		
+		// Find the childs to parse them
+		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) {
+				i++;
+			//return ( atof((const char *)tmp_node->children->content) );
+				printf("DELETE from `nodes` WHERE id=%d\n", atoi(xmlGetProp(tmp_node, (const xmlChar *)"id")) ); //TODO check syntax
+			}
+		}
+	fprintf(stderr, "del Warning: Found %d Nodes to delete is this correct?\n",i);
+	}
+	return i;
+}
+
 
 /**
  * traverse_tree:
@@ -119,13 +154,10 @@ traverse_tree(xmlNode * a_node, const config *config) {
 
 	xmlNode *cur_node = NULL;
 	xmlNode *free_node = NULL;
-	xmlChar *attlat;
-	xmlChar *attlon;
-	double ele = 0;
 	int i;
 
 	for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
-		ele = 0;
+		//ele = 0;
 		/*
 		 * XML_ELEMENT_NODE = 1
 		 * XML_ATTRIBUTE_NODE = 2
@@ -134,48 +166,51 @@ traverse_tree(xmlNode * a_node, const config *config) {
 		//printf("Type: %d  String: %s  name: %s  parent: %s\n", cur_node->type, cur_node->content, cur_node->name, cur_node->parent->name);
 		if (cur_node->type == XML_ELEMENT_NODE) {
 
-			if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"trkpt")) ) {
-				attlat = xmlGetProp(cur_node, (const xmlChar *)"lat");
-				attlon = xmlGetProp(cur_node, (const xmlChar *)"lon");
+			if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"delete")) ) {
+				printf("delete it \n");
+				parseDelete(cur_node);
+			} else if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"modify")) ) {
+				printf("modify it \n");
+			} else if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"create")) ) {
+				printf("create it \n");
+				parseCreate(cur_node);
+			}
 
-				ele = getCurrentElevation(cur_node);
-
-				if ( config->printOutLatLonEle == 1 ) {
-					printf("Att: lat = %s \t lon = %s \t ele = %.3f\n", attlat, attlon, ele);
+				//if ( config->printOutLatLonEle == 1 ) {
+				//	printf("Att: lat = %s \t lon = %s \t ele = %.3f\n", attlat, attlon, ele);
 					//printf("Att: lat = %s \t lon = %s \t ele = %.3f - %.3f - %.3f\n", attlat, attlon, getPrevElevation(cur_node), ele, getNextElevation(cur_node));
 					//printf("Att: lat = %s \t lon = %s \t ele = %.3f - %.3f\n", attlat, attlon, ele, getPrevElevation(cur_node, 3));
-				}
+				//}
 
 				/* delete? */
-				int avg = getCurrentElevation(cur_node);
-				for ( i = 1; i < config->radius +1; i++) {
-					int tmp = getPrevElevation( cur_node, i);
-					//printf("xxxx: %d\n", tmp);
-					if ( MIN != tmp )
-						avg += tmp;
-					else {
-						avg += ((config->radius +1) - i ) * getPrevElevation( cur_node, i-1);
-						break;
-					}
-				}
-				for ( i = 1; i < config->radius +1; i++) {
-					int tmp = getNextElevation( cur_node, i);
-					//printf("yyyy: %d\n", tmp);
-					if ( MIN != tmp )
-						avg += tmp;
-					else {
-						avg += ((config->radius +1) - i ) * getNextElevation( cur_node, i-1);
-						break;
-					}
-				}
-
-				if ( ele - ( avg / (config->radius*2 +1) ) > config->factor ) {
-					printf("Marked for deletion\n");
-					free_node = cur_node;
-				}
-				xmlFree(attlat);
-				xmlFree(attlon);
-			}
+//				int avg = getCurrentElevation(cur_node);
+//				for ( i = 1; i < config->radius +1; i++) {
+//					int tmp = getPrevElevation( cur_node, i);
+//					//printf("xxxx: %d\n", tmp);
+//					if ( MIN != tmp )
+//						avg += tmp;
+//					else {
+//						avg += ((config->radius +1) - i ) * getPrevElevation( cur_node, i-1);
+//						break;
+//					}
+//				}
+//				for ( i = 1; i < config->radius +1; i++) {
+//					int tmp = getNextElevation( cur_node, i);
+//					//printf("yyyy: %d\n", tmp);
+//					if ( MIN != tmp )
+//						avg += tmp;
+//					else {
+//						avg += ((config->radius +1) - i ) * getNextElevation( cur_node, i-1);
+//						break;
+//					}
+//				}
+//
+//				if ( ele - ( avg / (config->radius*2 +1) ) > config->factor ) {
+//					printf("Marked for deletion\n");
+//					free_node = cur_node;
+//				}
+//				xmlFree(attlat);
+//				xmlFree(attlon);
 		}
 
 		traverse_tree(cur_node->children, config);
@@ -196,7 +231,6 @@ traverse_tree(xmlNode * a_node, const config *config) {
 int
 main(int argc, char **argv)
 {
-
 	config config = {8, 32, 0};
 	extern char *optarg;
 	extern int optind, opterr, optopt;
