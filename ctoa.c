@@ -15,7 +15,6 @@
 #ifdef LIBXML_TREE_ENABLED
 
 #define DEBUG
-#define MIN -8000
 
 #ifndef DEBUG
   #define printDebugMsg(msg) ((void)0)

@@ -1,8 +1,9 @@
-ctoa
-====
-
+OSC2SQL
+=======
+bases on ctoa
 
 What is it
 ----------
 
-I just needed a small piece of code, which removes dissent elevations in a gps track xml file.
+It is a small programm which translates the Openstreetmap-Changeset Formart to an SQL pattern which matches on this DB-scheme:
+http://goblor.de/wp/2009/10/16/openstreetmap-projekt-teil-1-openstreetmap-daten-in-mysql-datenbank-einlesen/comment-page-1/
