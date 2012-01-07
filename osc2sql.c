@@ -60,7 +60,7 @@ addTagValues(xmlNode *oscptNode, int nodeID, int i) {
 
 	if (i>0) fprintf(output_file, ", "); //value blocks seperator
 
-	fprintf(output_file, "('%d', '%s', '%s')",
+	fprintf(output_file, "(\"%d\", \"%s\", \"%s\")",
 		nodeID,
 		xmlGetProp(oscptNode, (const xmlChar *)"k"),
 		xmlGetProp(oscptNode, (const xmlChar *)"v")
@@ -87,7 +87,7 @@ addNode(xmlNode *oscptNode) {
 	{
 		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//add general node infos
-		fprintf(output_file, "INSERT INTO nodes (id, lat, lon, visible, user, timestamp) VALUES ('%d', '%s', '%s', NULL, '%s', '%s');\n",
+		fprintf(output_file, "INSERT INTO nodes (id, lat, lon, visible, user, timestamp) VALUES (\"%d\", \"%s\", \"%s\", NULL, \"%s\", \"%s\");\n",
 					nodeID,
 					xmlGetProp(oscptNode, (const xmlChar *)"lat"),
 					xmlGetProp(oscptNode, (const xmlChar *)"lon"),
@@ -136,7 +136,7 @@ addWay(xmlNode *oscptNode) {
 	{
 		int wayID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//add general node infos
-		fprintf(output_file, "INSERT INTO ways (id, visible, user, timestamp) VALUES ('%d', NULL, '%s', '%s');\n",
+		fprintf(output_file, "INSERT INTO ways (id, visible, user, timestamp) VALUES (\"%d\", NULL, \"%s\", \"%s\");\n",
 					wayID,
 					xmlGetProp(oscptNode, (const xmlChar *)"user"),
 					xmlGetProp(oscptNode, (const xmlChar *)"timestamp")
@@ -219,10 +219,10 @@ deleteNode(xmlNode *oscptNode) {
 	{
 		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//delete general node info
-		fprintf(output_file, "DELETE FROM nodes WHERE id='%d';\n", nodeID ); //TODO check syntax
+		fprintf(output_file, "DELETE FROM nodes WHERE id=\"%d\";\n", nodeID ); //TODO check syntax
 	
 		//delete tags
-		fprintf(output_file, "DELETE FROM node_tags WHERE id='%d';\n", nodeID ); //TODO check syntax
+		fprintf(output_file, "DELETE FROM node_tags WHERE id=\"%d\";\n", nodeID ); //TODO check syntax
 
 		//TODO ways, relations
 	} else 
