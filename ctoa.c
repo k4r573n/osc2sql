@@ -24,6 +24,8 @@
   #define printDebugMsgv(msg) (printDebugv(msg, __FILE__, __LINE__))
 #endif
 
+FILE *output_file;
+
 void printDebugv( const char *msg, const char *file, const int line) {
 	fprintf(stderr, "%s : line %d in %s\n", msg, line, file);
 }
@@ -56,9 +58,9 @@ static int
 addTagValues(xmlNode *oscptNode, int nodeID, int i) {
 	//printf("in addTagValues\n");
 
-	if (i>0) printf(", "); //value blocks seperator
+	if (i>0) fprintf(output_file, ", "); //value blocks seperator
 
-	printf("('%d', '%s', '%s')",
+	fprintf(output_file, "('%d', '%s', '%s')",
 		nodeID,
 		xmlGetProp(oscptNode, (const xmlChar *)"k"),
 		xmlGetProp(oscptNode, (const xmlChar *)"v")
@@ -79,13 +81,13 @@ addNode(xmlNode *oscptNode) {
 	int i = 0;	
 	xmlNode *tmp_node;
 
-	printf("in addNode\n");
+	printDebug("in addNode\n");
 
 	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"node")) ) 
 	{
 		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//add general node infos
-		printf("INSERT INTO nodes (id, lat, lon, visible, user, timestamp) VALUES ('%d', '%s', '%s', NULL, '%s', '%s');\n",
+		fprintf(output_file, "INSERT INTO nodes (id, lat, lon, visible, user, timestamp) VALUES ('%d', '%s', '%s', NULL, '%s', '%s');\n",
 					nodeID,
 					xmlGetProp(oscptNode, (const xmlChar *)"lat"),
 					xmlGetProp(oscptNode, (const xmlChar *)"lon"),
@@ -97,7 +99,7 @@ addNode(xmlNode *oscptNode) {
 		if (oscptNode->children) 
 		{
 			//init tag insert
-			printf("INSERT INTO node_tags (id, k, v) VALUES ");
+			fprintf(output_file, "INSERT INTO node_tags (id, k, v) VALUES ");
 		}
 
 		// Find the childs to parse them
@@ -106,7 +108,7 @@ addNode(xmlNode *oscptNode) {
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
 				i += addTagValues(tmp_node, nodeID, i);
 		}
-		if (i>1) printf(";\n"); //new line if there are tag(s)
+		if (i>1) fprintf(output_file, ";\n"); //new line if there are tag(s)
 
 	} else 
 		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
@@ -128,13 +130,13 @@ addWay(xmlNode *oscptNode) {
 	int i = 0;	
 	xmlNode *tmp_node;
 
-	printf("in addWay\n");
+	printDebug("in addWay\n");
 
 	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"way")) ) 
 	{
 		int wayID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//add general node infos
-		printf("INSERT INTO ways (id, visible, user, timestamp) VALUES ('%d', NULL, '%s', '%s');\n",
+		fprintf(output_file, "INSERT INTO ways (id, visible, user, timestamp) VALUES ('%d', NULL, '%s', '%s');\n",
 					wayID,
 					xmlGetProp(oscptNode, (const xmlChar *)"user"),
 					xmlGetProp(oscptNode, (const xmlChar *)"timestamp")
@@ -144,7 +146,7 @@ addWay(xmlNode *oscptNode) {
 		if (oscptNode->children) 
 		{
 			//init tag insert
-			printf("INSERT INTO way_tags (id, k, v) VALUES ");
+			fprintf(output_file, "INSERT INTO way_tags (id, k, v) VALUES ");
 		}
 
 		// Find the childs to parse them
@@ -154,7 +156,7 @@ addWay(xmlNode *oscptNode) {
 				i += addTagValues(tmp_node, wayID, i);
 			//TODO handle <nd ref="id">
 		}
-		if (i>1) printf(";\n"); //new line if there are tag(s)
+		if (i>1) fprintf(output_file, ";\n"); //new line if there are tag(s)
 	} else 
 		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
 
@@ -163,10 +165,17 @@ addWay(xmlNode *oscptNode) {
 }
 
 
+/* 
+ * parseCreate:
+ * @oscptNode: is a Node to parse and add to SQL Output
+ *
+ * parses a xml-node representing a object and calls subfunctions to convert it in SQL 
+ *
+ */
 static int
 parseCreate(xmlNode *oscptNode) {
 
-	printf("in parse create\n");
+	printDebug("in parse create\n");
 
 	xmlNode *tmp_node;
 	int i = 0;
@@ -203,32 +212,36 @@ parseCreate(xmlNode *oscptNode) {
  */
 static int
 deleteNode(xmlNode *oscptNode) {
-	int i = 0;	
-	xmlNode *tmp_node;
 
-	printf("in deleteNode\n");
+	printDebug("in deleteNode\n");
 
 	if ( (!xmlStrcmp(oscptNode->name, (const xmlChar *)"node")) ) 
 	{
 		int nodeID = atoi(xmlGetProp(oscptNode, (const xmlChar *)"id"));
 		//delete general node info
-		printf("DELETE FROM nodes WHERE id='%d';\n", nodeID ); //TODO check syntax
+		fprintf(output_file, "DELETE FROM nodes WHERE id='%d';\n", nodeID ); //TODO check syntax
 	
 		//delete tags
-		printf("DELETE FROM node_tags WHERE id='%d';\n", nodeID ); //TODO check syntax
+		fprintf(output_file, "DELETE FROM node_tags WHERE id='%d';\n", nodeID ); //TODO check syntax
 
 		//TODO ways, relations
 	} else 
 		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
 
-	xmlFree(tmp_node);
-	return i; //number of tags
+	return 0;
 }
 
+/* 
+ * parseDelete:
+ * @oscptNode: is a Node to parse for deletetion and add to SQL Output
+ *
+ * parses a xml-node representing a object and calls subroutins for converting to SQL
+ *
+ */
 static int
 parseDelete(xmlNode *oscptNode) {
 
-	printf("in parse delete\n");
+	printDebug("in parse delete\n");
 
 	xmlNode *tmp_node;
 	int i = 0;
@@ -252,10 +265,17 @@ parseDelete(xmlNode *oscptNode) {
 	return i;
 }
 
+/* 
+ * parseModify:
+ * @oscptNode: is a Node to parse for modification and add to SQL Output
+ *
+ * parses a xml-node representing a object and calls subroutins for converting to SQL
+ *
+ */
 static int
 parseModify(xmlNode *oscptNode) {
 
-	printf("in parse Modify\n");
+	printDebug("in parse Modify\n");
 
 	xmlNode *tmp_node;
 	int i = 0;
@@ -296,7 +316,7 @@ traverse_tree(xmlNode * a_node, const config *config) {
 
 	xmlNode *cur_node = NULL;
 	xmlNode *free_node = NULL;
-	int i;
+	//int i;
 
 	for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
 		//ele = 0;
@@ -309,12 +329,13 @@ traverse_tree(xmlNode * a_node, const config *config) {
 		if (cur_node->type == XML_ELEMENT_NODE) {
 
 			if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"delete")) ) {
-				printf("delete it \n");
+				printDebug("delete it \n");
 				parseDelete(cur_node);
 			} else if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"modify")) ) {
-				printf("modify it \n");
+				printDebug("modify it \n");
+				parseModify(cur_node);
 			} else if ( (!xmlStrcmp(cur_node->name, (const xmlChar *)"create")) ) {
-				printf("create it \n");
+				printDebug("create it \n");
 				parseCreate(cur_node);
 			}
 
@@ -357,7 +378,7 @@ main(int argc, char **argv)
 	while ((opt = getopt(argc, argv, "hi:o:r:f:v")) != -1) {
 		switch (opt) {
 			case 'h': // help
-				fprintf(stderr, "Usage: %s -i <infile> -o <outfile> [-v] [-r radius] [-f factor]\n", argv[0]);
+				fprintf(stderr, "Usage: %s -i <infile> -o <outfile> [-v] \n", argv[0]);
 				exit (EXIT_FAILURE);
 				break;
 			case 'i': // infile
@@ -376,11 +397,26 @@ main(int argc, char **argv)
 				config.printOutLatLonEle = 1;
 				break;
 			default: // ?
-				fprintf(stderr, "Usage: %s -i <infile> -o <outfile> [-v] [-r radius] [-f factor]\n", argv[0]);
+				fprintf(stderr, "Usage: %s -i <infile> -o <outfile> [-v] \n", argv[0]);
 				exit (EXIT_FAILURE);
 				break;
 		}
 	}
+
+	if ( outfile != NULL ) {
+		output_file = fopen( outfile, "w" );
+
+		if( output_file == NULL ) {
+				fprintf( stderr, "Error: can't write to output\n" );
+				exit (EXIT_FAILURE);
+		}
+	} else {
+		output_file = stdout;
+	}
+
+	//init sql file - to apply all changes at once
+	fprintf(output_file, "set character set utf8;\nSET AUTOCOMMIT=0;\n" );
+
 
 	/*parse the file and get the DOM */
 	doc = xmlReadFile(infile, NULL, 0);
@@ -393,12 +429,17 @@ main(int argc, char **argv)
 	/*Get the root element node */
 	root_element = xmlDocGetRootElement(doc);
 
+	/* do it */
 	traverse_tree(root_element, &config);
 
-	/* Save file */
-	if ( outfile != NULL ) {
-		xmlSaveFile(outfile, doc);
-	}
+	//close sql file - to apply all changes at once
+	fprintf(output_file, "COMMIT;\n" );
+
+//	//close output file
+//	int ret = close( output_file );
+//	if (ret != 0)
+//		fprintf( stderr, "Error: can't close output file\n" );
+
 
 	/*free the document */
 	xmlFreeDoc(doc);
