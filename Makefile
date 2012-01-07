@@ -10,7 +10,7 @@ MISC_LIBS =
 INCS = $(XML_INCS)
 LIBS = $(XML_LIBS) $(MISC_LIBS)
 
-TARGET = ctoa
+TARGET = osc2sql
 
 SRC_DIRS := .
 SRC_FILES := $(foreach DIR, $(SRC_DIRS), $(wildcard $(DIR)/*.c))

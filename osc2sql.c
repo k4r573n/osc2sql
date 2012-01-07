@@ -108,7 +108,7 @@ addNode(xmlNode *oscptNode) {
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
 				i += addTagValues(tmp_node, nodeID, i);
 		}
-		if (i>1) fprintf(output_file, ";\n"); //new line if there are tag(s)
+		if (i>=1) fprintf(output_file, ";\n"); //new line if there are tag(s)
 
 	} else 
 		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
