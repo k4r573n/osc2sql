@@ -7,3 +7,8 @@ What is it
 
 It is a small programm which translates the Openstreetmap-Changeset Formart to an SQL pattern which matches on this DB-scheme:
 http://goblor.de/wp/2009/10/16/openstreetmap-projekt-teil-1-openstreetmap-daten-in-mysql-datenbank-einlesen/comment-page-1/
+
+TODO:
+-----
+
+today it works only for nodes - ways and relations are missing
