@@ -25,6 +25,7 @@
 #endif
 
 FILE *output_file;
+char buf[5000];
 
 void printDebugv( const char *msg, const char *file, const int line) {
 	fprintf(stderr, "%s : line %d in %s\n", msg, line, file);
@@ -45,6 +46,37 @@ typedef struct _config {
  */
 
 
+/*
+ * escape:
+ * @
+ *
+ * escapes " signs to make SQL Import possible 
+ */
+static char* escape(const char *msg) {
+	int len = strlen(msg);	
+	int i,b=0;
+
+	for(i=0; i<len; i++) {
+		if (msg[i] == '"') {
+			buf[b++] = '&';
+			buf[b++] = 'q';
+			buf[b++] = 'u';
+			buf[b++] = 'o';
+			buf[b++] = 't';
+			buf[b++] = ';';
+
+		}else{
+			buf[b] = msg[i];
+			b++;
+		}
+
+	}
+
+	//buf[b] = "\0";
+
+	return buf;
+}
+
 /* 
  * addTagValues:
  * @oscptNode: is a Tag-Node to parse and add to SQL Output
@@ -62,8 +94,8 @@ addTagValues(xmlNode *oscptNode, int nodeID, int i) {
 
 	fprintf(output_file, "(\"%d\", \"%s\", \"%s\")",
 		nodeID,
-		xmlGetProp(oscptNode, (const xmlChar *)"k"),
-		xmlGetProp(oscptNode, (const xmlChar *)"v")
+		escape(xmlGetProp(oscptNode, (const xmlChar *)"k")),
+		escape(xmlGetProp(oscptNode, (const xmlChar *)"v"))
 	);
 
 	return 1;//important! used as counter
