@@ -26,6 +26,7 @@
 
 FILE *output_file;
 char buf[5000];
+char empty[5000];
 
 void printDebugv( const char *msg, const char *file, const int line) {
 	fprintf(stderr, "%s : line %d in %s\n", msg, line, file);
@@ -51,10 +52,16 @@ typedef struct _config {
  * @
  *
  * escapes " signs to make SQL Import possible 
+ *
+ * BUGS:
+ * returns two times the same buffer and don't handle the new message :(
  */
-static char* escape(const char *msg) {
+char* escape(char *msg) {
 	int len = strlen(msg);	
 	int i,b=0;
+	memset ( empty, 0, 5000);//clear buffer
+	strcpy( empty, msg );
+	memset ( buf, 0, 5000);//clear buffer
 
 	for(i=0; i<len; i++) {
 		if (msg[i] == '"') {
@@ -66,8 +73,7 @@ static char* escape(const char *msg) {
 			buf[b++] = ';';
 
 		}else{
-			buf[b] = msg[i];
-			b++;
+			buf[b++] = msg[i];
 		}
 
 	}
@@ -92,9 +98,11 @@ addTagValues(xmlNode *oscptNode, int nodeID, int i) {
 
 	if (i>0) fprintf(output_file, ", "); //value blocks seperator
 
-	fprintf(output_file, "(\"%d\", \"%s\", \"%s\")",
+	fprintf(output_file, "(\"%d\", \"%s\", ",
 		nodeID,
-		escape(xmlGetProp(oscptNode, (const xmlChar *)"k")),
+		escape(xmlGetProp(oscptNode, (const xmlChar *)"k"))
+	);
+	fprintf(output_file, "\"%s\")",
 		escape(xmlGetProp(oscptNode, (const xmlChar *)"v"))
 	);
 
