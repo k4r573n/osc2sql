@@ -110,6 +110,32 @@ addTagValues(xmlNode *oscptNode, int nodeID, int i) {
 }
 
 /* 
+ * addNodes2WayValues:
+ * @oscptNode: is a Tag-Node to parse and add to SQL Output
+ * @nodeID: ID of parent node
+ * @i: conter - is this the first run on this node or higher?
+ *
+ * parses a xml-node representing a tag and returns the Values in SQL INSERT format to stdout
+ *
+ */
+static int
+addNodes2WayValues(xmlNode *oscptNode, int wayID, int i) {
+	//printf("in addTagValues\n");
+
+	if (i>0) fprintf(output_file, ", "); //value blocks seperator
+
+	fprintf(output_file, "(\"%s\", ",
+		escape(xmlGetProp(oscptNode, (const xmlChar *)"ref"))
+	);
+	fprintf(output_file, "\"%d\", \"%d\")",//TODO check if last value is a running number
+		wayID,
+		i
+	);
+
+	return 1;//important! used as counter
+}
+
+/* 
  * addNode:
  * @oscptNode: is a Node to parse and add to SQL Output
  *
@@ -167,7 +193,8 @@ addNode(xmlNode *oscptNode) {
  */
 static int
 addWay(xmlNode *oscptNode) {
-	int i = 0;	
+	int i = 0;
+	int tag_exists = 0;
 	xmlNode *tmp_node;
 
 	printDebug("in addWay\n");
@@ -185,18 +212,34 @@ addWay(xmlNode *oscptNode) {
 		//check if childs exists
 		if (oscptNode->children) 
 		{
-			//init tag insert
-			fprintf(output_file, "INSERT INTO way_tags (id, k, v) VALUES ");
+			//init to add nodes of this way
+			fprintf(output_file, "INSERT INTO ways_nodes (nodeid, wayid, sequence) VALUES ");
 		}
 
 		// Find the childs to parse them
 		for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+			//handle nodes in way
+			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"nd")) ) 
+				i += addNodes2WayValues(tmp_node, wayID, i);
 			//handle tags
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
-				i += addTagValues(tmp_node, wayID, i);
-			//TODO handle <nd ref="id">
+				tag_exists++;
 		}
 		if (i>1) fprintf(output_file, ";\n"); //new line if there are tag(s)
+
+		//handle tags
+		if (tag_exists)
+		{
+			//init tag insert
+			fprintf(output_file, "INSERT INTO way_tags (id, k, v) VALUES ");
+
+			// Find the childs to parse them
+			for (tmp_node = oscptNode->children; tmp_node; tmp_node = tmp_node->next) {
+				if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"tag")) ) 
+					i += addTagValues(tmp_node, wayID, i);
+			}
+			if (i>1) fprintf(output_file, ";\n"); //new line if there are tag(s)
+		}
 	} else 
 		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptNode->name);
 
@@ -272,6 +315,37 @@ deleteNode(xmlNode *oscptNode) {
 }
 
 /* 
+ * deleteWay:
+ * @oscptWay: is a Way to parse and add to SQL Output
+ *
+ * parses a xml-node representing a Way and returns it in SQL DELETE format to stdout
+ *
+ */
+static int
+deleteWay(xmlNode *oscptWay) {
+
+	printDebug("in deleteWay\n");
+
+	if ( (!xmlStrcmp(oscptWay->name, (const xmlChar *)"way")) ) 
+	{
+		int wayID = atoi(xmlGetProp(oscptWay, (const xmlChar *)"id"));
+		//delete general node info
+		fprintf(output_file, "DELETE FROM ways WHERE id=\"%d\";\n", wayID ); //TODO check syntax
+
+		//delete node way association
+		fprintf(output_file, "DELETE FROM way_nodes WHERE wayid=\"%d\";\n", wayID ); //TODO check syntax
+	
+		//delete tags
+		fprintf(output_file, "DELETE FROM way_tags WHERE id=\"%d\";\n", wayID ); //TODO check syntax
+
+		//TODO ways, relations
+	} else 
+		fprintf(stderr, "Error: not matching Node Type (%s) !\n", oscptWay->name);
+
+	return 0;
+}
+
+/* 
  * parseDelete:
  * @oscptNode: is a Node to parse for deletetion and add to SQL Output
  *
@@ -293,7 +367,10 @@ parseDelete(xmlNode *oscptNode) {
 			if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"node")) ) {
 				i++;
 				deleteNode(tmp_node);
-				//TODO way, relation
+			}	else if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"way")) ) {
+				i++;
+				deleteWay(tmp_node);
+				//TODO relation
 			} else 
 				fprintf(stderr, "Warning: Found unknown Object (%s) !\n", tmp_node->name);
 		}//end Loop
@@ -331,7 +408,14 @@ parseModify(xmlNode *oscptNode) {
 				//create a new one with new values
 				addNode(tmp_node);
 
-				//TODO way, relation
+			}else if ( (!xmlStrcmp(tmp_node->name, (const xmlChar *)"way")) ) {
+				i++;
+				//delete first
+				deleteWay(tmp_node);
+				//create a new one with new values
+				addWay(tmp_node);
+
+				//TODO relation
 			}	else
 				fprintf(stderr, "Warning: Found unknown Object (%s) !\n", tmp_node->name);
 		}//end Loop

@@ -19,6 +19,12 @@ OBJS := $(patsubst %.c, %.o, $(SRC_FILES))
 all : $(TARGET)
 	@echo All done
 
+#uses http://wiki.openstreetmap.org/wiki/Osmconvert
+osc:
+	./osmconvert/osmconvert $(OLD_DATA) $(NEW_DATA) --diff -o=changefile.osc
+sql:
+	./osc2sql -i changefile.osc -o update_diff.sql
+
 $(TARGET) : $(OBJS)
 	$(GCC_COMPILER) $(GCC_COMPILER_FLAGS) -o $@ $^ $(LIBS)
 
